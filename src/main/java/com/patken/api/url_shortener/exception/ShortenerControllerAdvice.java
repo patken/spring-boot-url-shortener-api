@@ -2,9 +2,9 @@ package com.patken.api.url_shortener.exception;
 
 import com.patken.api.url_shortener.model.Element;
 import com.patken.api.url_shortener.model.Problem;
-import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -32,14 +32,14 @@ public class ShortenerControllerAdvice {
                 .detail(notFoundException.getMessage()), NOT_FOUND);
     }
 
-    @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Problem> handleConstraintException(ConstraintViolationException exception){
-        log.error("[Url-Shortener] : Constraint Exception occurred while processing the request with message {}", exception.getMessage(), exception);
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Problem> handleMethodNotValidException(MethodArgumentNotValidException exception){
+        log.error("[Url-Shortener] : Method argument Exception occurred while processing the request with message {}", exception.getMessage(), exception);
         var currentDateTime = LocalDateTime.now();
-        var errorList = exception.getConstraintViolations()
+        var errorList = exception.getBindingResult().getFieldErrors()
                 .stream()
                 .map(fieldError -> new Element()
-                        .message(fieldError.getPropertyPath().toString() + " - " + fieldError.getMessage())
+                        .message(fieldError.getField() + " - " + fieldError.getDefaultMessage())
                         .timestamp(currentDateTime))
                 .toList();
         return new ResponseEntity<>(new Problem()
@@ -47,6 +47,5 @@ public class ShortenerControllerAdvice {
                 .detail(exception.getMessage())
                 .elements(errorList), BAD_REQUEST);
     }
-
 
 }

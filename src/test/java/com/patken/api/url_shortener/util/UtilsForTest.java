@@ -29,7 +29,7 @@ public class UtilsForTest {
 
     public static ShortenUrlRequest buildUrlShortenRequest(){
         var result = new ShortenUrlRequest();
-        result.setUrl(SHORTEN_URL);
+        result.setUrl(ORIGINAL_URL);
         return result;
     }
 

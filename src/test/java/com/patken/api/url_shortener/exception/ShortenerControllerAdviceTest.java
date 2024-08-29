@@ -1,15 +1,15 @@
 package com.patken.api.url_shortener.exception;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.validation.BindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 
-import java.util.Set;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -50,27 +50,26 @@ class ShortenerControllerAdviceTest {
     }
 
     @Test
-    @DisplayName("Test Constraint Exception successfully")
+    @DisplayName("Test Not Valid Exception successfully")
     void testConstraintException(){
-        var mockException = mock(ConstraintViolationException.class);
-        var mockConstraint = mock(ConstraintViolation.class);
-        var mockPath = mock(Path.class);
+        var mockException = mock(MethodArgumentNotValidException.class);
+        var mockBindigResult = mock(BindingResult.class);
 
-        when(mockException.getMessage()).thenReturn("Constraint Exception");
-        when(mockException.getConstraintViolations()).thenReturn(Set.of(mockConstraint));
-        when(mockConstraint.getMessage()).thenReturn("Mock violation message");
-        when(mockConstraint.getPropertyPath()).thenReturn(mockPath);
-        when(mockPath.toString()).thenReturn("attribute");
+        when(mockException.getMessage()).thenReturn("Method Not Valid Exception");
+        when(mockException.getBindingResult()).thenReturn(mockBindigResult);
+        when(mockBindigResult.getFieldErrors()).thenReturn(List.of(new FieldError("object", "attribute", "Mock message")));
 
-        var response = shortenerControllerAdvice.handleConstraintException(mockException);
+
+        var response = shortenerControllerAdvice.handleMethodNotValidException(mockException);
         assertNotNull(response);
         assertEquals(BAD_REQUEST, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(BAD_REQUEST.getReasonPhrase(), response.getBody().getTitle());
-        assertTrue(response.getBody().getDetail().contains("Constraint Exception"));
+        assertTrue(response.getBody().getDetail().contains("Method Not Valid Exception"));
         assertNotNull(response.getBody().getElements());
         assertEquals(1, response.getBody().getElements().size());
         assertTrue(response.getBody().getElements().get(0).getMessage().contains("attribute"));
 
     }
+
 }

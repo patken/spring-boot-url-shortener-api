@@ -1,6 +1,36 @@
 spring:
   application:
     name: url-shortener-api
+  datasource:
+    url: ${DATASOURCE_URL}
+    driverClassName: ${DRIVER_CLASS_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    database-platform: ${DATABASE_PLATFORM}
+    hibernate:
+      ddl-auto: ${DDL_AUTO}
+  h2:
+    console:
+      enabled: true
+
+management:
+  health:
+    defaults:
+      enabled: false
+    ping:
+      enabled: true
+    diskspace:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health, info, check
+  endpoint:
+    health:
+      show-detail: always
+  server:
+    port: 9999
 
 app:
   retry-database:

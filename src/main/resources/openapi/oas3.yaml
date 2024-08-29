@@ -1,4 +1,4 @@
-openapi: 6.2.1
+openapi: 3.0.1
 info:
   title: Url-Shortener-Endpoint
   version: v${project.version}

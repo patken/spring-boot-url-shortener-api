@@ -21,14 +21,15 @@ import java.util.function.Function;
 @Slf4j
 @RequiredArgsConstructor
 @Service
+@SuppressWarnings("unused")
 public class UrlShortenerServiceImpl implements UrlShortenerService {
 
     private final RetryRepositoryTemplate retryRepositoryTemplate;
 
     @Value("${app.deploy.url}")
-    private final String deployUrl;
+    private String deployUrl;
 
-    Function<UrlEntity, ShortenUrlResponse> mapEntityToResponse = (urlEntity -> new ShortenUrlResponse()
+    private final Function<UrlEntity, ShortenUrlResponse> mapEntityToResponse = (urlEntity -> new ShortenUrlResponse()
             .originalUrl(urlEntity.getOriginalUrl())
             .shortenUrl(urlEntity.getShortenUrl()));
 
