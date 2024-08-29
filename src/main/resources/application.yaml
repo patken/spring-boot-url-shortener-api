@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: url-shortener-api
+
+app:
+  retry-database:
+    max-attempts: ${APP_DATABASE_RETRY_ATTEMPTS}
+    backoff: ${APP_DATABASE_RETRY_BACKOFF}
+  deploy:
+    url: ${APP_DEPLOY_URL}

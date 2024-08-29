@@ -1,0 +1,209 @@
+openapi: 6.2.1
+info:
+  title: Url-Shortener-Endpoint
+  version: v${project.version}
+  description: Api that can help you to shorten long url
+tags:
+  - name: Url-Shortener-Endpoint
+    description: Url Shortener Endpoint (Post and Get)
+paths:
+  /url-shortener:
+    post:
+      tags:
+        - Url-Shortener-Endpoint
+      summary: Save a new url with its shortened version.
+      operationId: addNewShortenUrl
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShortenUrlRequest'
+      responses:
+        '201':
+          description: Url created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortenUrlResponse'
+        '400':
+          description: Bad Request due to missing / invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+    get:
+      tags:
+        - Url-Shortener-Endpoint
+      summary: Get All url shortened url
+      operationId: getAllShortenedUrl
+      parameters:
+        - name: page
+          description: The page of the occurrence
+          example: 0
+          in: query
+          required: false
+          schema:
+            default: 0
+            type: Integer
+        - name: limit
+          description: The limit for the number of records to be return by page
+          example: 10
+          in: query
+          required: false
+          schema:
+            default: 10
+            type: Integer
+      responses:
+        '200':
+          description: Ok, All the url are retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortenUrlPageResponse'
+        '400':
+          description: Bad Request due to missing / invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /url-shortener/{shortenUrl}:
+    get:
+      tags:
+        - Url-Shortener-Endpoint
+      summary: Get original url from shortened url
+      operationId: getOriginalUrl
+      parameters:
+        - name: shortenUrl
+          in: path
+          description: "The shortened url used to get original url"
+          example: "http://localhost/xhdaseewrt"
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ok, the original url is retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShortenUrlResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '500':
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  schemas:
+    Element:
+      type: object
+      title: Element
+      description: Error detail payload
+      properties:
+        message:
+          type: string
+          description: A short, human-readable summary of the reason
+        timestamp:
+          type: string
+          format: date-time
+          example: '2024-08-20T15:35:12'
+          description: A timestamp identifying the specific occurrence of the element in cause
+    Problem:
+      type: object
+      title: Problem
+      description: Url shortener Api error payload
+      properties:
+        title:
+          type: string
+          description: A short, human-readable summary of the problem type
+        detail:
+          type: string
+          description: Explanation specific to this occurrence of the problem
+        elements:
+          type: array
+          description: Error List
+          items:
+            $ref: '#/components/schemas/Element'
+    ShortenUrlRequest:
+      type: object
+      title: ShortenUrlRequest
+      description: Payload used to request an url shortener
+      properties:
+        url:
+          type: string
+          description: Original Url to shorten
+      required:
+        - url
+    ShortenUrlResponse:
+      type: object
+      title: ShortenUrlResponse
+      description: Response while getting original url
+      properties:
+        originalUrl:
+          type: string
+          description: Original Url shortened
+        shortenUrl:
+          type: string
+          description: Url shortened
+    ShortenUrlPageResponse:
+      type: object
+      title: ShortenUrlPageResponse
+      description: Response while getting all url shortened
+      properties:
+        records:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShortenUrlResponse'
+        total:
+          type: long
+          description: Total number of records found
+          example: 25
+        next:
+          type: string
+          description: Simple Link to get the next x elements
+          example: http://localhost:8080/api/v1/url-shortener?page=1&limit=10
+      required:
+        - records
