@@ -11,6 +11,12 @@ public class Utility {
 
     private static final String CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
+    /**
+     *
+     * @return String
+     *
+     * This method helps us to shorten a url so that we can have an unique string
+     */
     public static String buildShortenUrl(){
         long currentTimestamp = System.currentTimeMillis();
         var stringBuilder = new StringBuilder();

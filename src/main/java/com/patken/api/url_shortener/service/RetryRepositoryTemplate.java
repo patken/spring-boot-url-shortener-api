@@ -4,6 +4,7 @@ import com.patken.api.url_shortener.entity.UrlEntity;
 import com.patken.api.url_shortener.repository.UrlShortenerRepository;
 import jakarta.validation.ConstraintViolationException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class RetryRepositoryTemplate {

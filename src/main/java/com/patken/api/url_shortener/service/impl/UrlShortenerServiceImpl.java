@@ -1,6 +1,7 @@
 package com.patken.api.url_shortener.service.impl;
 
 import com.patken.api.url_shortener.entity.UrlEntity;
+import com.patken.api.url_shortener.exception.InvalidUrlException;
 import com.patken.api.url_shortener.exception.UrlNotFoundException;
 import com.patken.api.url_shortener.model.ShortenUrlPageResponse;
 import com.patken.api.url_shortener.model.ShortenUrlRequest;
@@ -10,7 +11,9 @@ import com.patken.api.url_shortener.service.UrlShortenerService;
 import com.patken.api.url_shortener.util.Utility;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.validator.routines.UrlValidator;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -25,6 +28,7 @@ import java.util.function.Function;
 public class UrlShortenerServiceImpl implements UrlShortenerService {
 
     private final RetryRepositoryTemplate retryRepositoryTemplate;
+    private final UrlValidator urlValidator = new UrlValidator();
 
     @Value("${app.deploy.url}")
     private String deployUrl;
@@ -37,6 +41,11 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
     @Override
     public ShortenUrlResponse addNewShortenUrl(ShortenUrlRequest shortenUrlRequest) {
         var originalUrl = shortenUrlRequest.getUrl();
+        if(!urlValidator.isValid(originalUrl)){
+            log.error("[Url-Shortener] : Invalid url provided with text : {}", originalUrl);
+            throw new InvalidUrlException("Invalid Url Provided ; please verify and try again");
+        }
+
         var existShortenUrl = getShortenUrlEntity(originalUrl);
         if(null != existShortenUrl && existShortenUrl.isPresent()){
             var existsShortenUrlEntity = existShortenUrl.get();
@@ -54,6 +63,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
     }
 
     @Override
+    @Cacheable(value = "SHORTEN_URL", key = "#shortenUrl")
     public ShortenUrlResponse getOriginalUrl(String shortenUrl) {
         var urlEntity = retryRepositoryTemplate.getOriginalUrl(shortenUrl);
         if (urlEntity.isPresent()){
@@ -82,6 +92,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
                 .next(urlEntityList.isEmpty() ? null : String.format(deployUrl.concat("?page=%d&limit=%d"), pageable.getPageNumber() + 1, pageable.getPageSize()));
     }
 
+    @Cacheable(value = "ORIGINAL_URL", key = "#originalUrl")
     private Optional<UrlEntity> getShortenUrlEntity(String originalUrl){
         return retryRepositoryTemplate.getShortenUrl(originalUrl);
     }

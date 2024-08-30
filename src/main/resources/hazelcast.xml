@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<hazelcast
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns="http://www.hazelcast.com/schema/config">
+    <instance-name>url-shortener-hazelcast-instance</instance-name>
+
+    <properties>
+        <property name="hazelcast.health.monitoring.level">OFF</property>
+    </properties>
+
+    <map name="ORIGINAL_URL">
+        <time-to-live-seconds>15768000</time-to-live-seconds>
+    </map>
+
+    <map name="SHORTEN_URL">
+        <time-to-live-seconds>15768000</time-to-live-seconds>
+    </map>
+
+</hazelcast>

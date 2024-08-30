@@ -1,7 +1,9 @@
 package com.patken.api.url_shortener.service.impl;
 
 import com.patken.api.url_shortener.entity.UrlEntity;
+import com.patken.api.url_shortener.exception.InvalidUrlException;
 import com.patken.api.url_shortener.exception.UrlNotFoundException;
+import com.patken.api.url_shortener.model.ShortenUrlRequest;
 import com.patken.api.url_shortener.service.RetryRepositoryTemplate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +56,21 @@ class UrlShortenerServiceImplTest {
                 () -> assertEquals(SHORTEN_URL, response.getShortenUrl()));
 
         verify(retryRepositoryTemplate).getShortenUrl(ORIGINAL_URL);
+        verify(retryRepositoryTemplate, never()).saveUrl(any());
+    }
+
+    @Test
+    @DisplayName("Add new Shorten url with invalid datas")
+    void testAddNewShortenUrlInvalid(){
+        var request = new ShortenUrlRequest();
+        request.setUrl("https:// world/ error");
+
+        var response = assertThrows(InvalidUrlException.class, () -> urlShortenerService.addNewShortenUrl(request));
+
+        assertNotNull(response);
+        assertTrue(response.getMessage().contains("Invalid Url Provided"));
+
+        verify(retryRepositoryTemplate, never()).getShortenUrl(ORIGINAL_URL);
         verify(retryRepositoryTemplate, never()).saveUrl(any());
     }
 

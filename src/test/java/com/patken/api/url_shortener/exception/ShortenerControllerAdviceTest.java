@@ -21,6 +21,7 @@ import static org.springframework.http.HttpStatus.*;
 class ShortenerControllerAdviceTest {
 
     private static final String NOT_FOUND_MESSAGE = "Unable to find url shortener : xdsasdsf";
+    private static final String INVALID_URL_MESSAGE = "Invalid Url message";
 
     @InjectMocks
     private ShortenerControllerAdvice shortenerControllerAdvice;
@@ -47,6 +48,18 @@ class ShortenerControllerAdviceTest {
         assertNotNull(response.getBody());
         assertTrue(response.getBody().getDetail().contains("Unexpected Exception"));
         assertEquals(INTERNAL_SERVER_ERROR.getReasonPhrase(), response.getBody().getTitle());
+    }
+
+    @Test
+    @DisplayName("Test Invalid Url Exception successfully")
+    void testInvalidUrlException(){
+        var invalidUrlException = new InvalidUrlException(INVALID_URL_MESSAGE);
+        var response = shortenerControllerAdvice.handleInvalidException(invalidUrlException);
+        assertNotNull(response);
+        assertEquals(BAD_REQUEST, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().getDetail().contains("Invalid Url"));
+        assertEquals(BAD_REQUEST.getReasonPhrase(), response.getBody().getTitle());
     }
 
     @Test

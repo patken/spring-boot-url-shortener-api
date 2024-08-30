@@ -19,6 +19,10 @@ public class AuditorAwareImpl implements AuditorAware<String> {
 
     private final DataSource dataSource;
 
+    /**
+     *
+     * @return String which is the database's username that we get to set @CreatedBy from entities
+     */
     @Override
     public Optional<String> getCurrentAuditor() {
         String auditor = null;

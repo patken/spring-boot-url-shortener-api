@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
 
 import static org.springframework.http.HttpStatus.*;
 
+/**
+ * Class that we use to handle Exception and provide Problem Object to consumers
+ */
 @Slf4j
 @RestControllerAdvice
 public class ShortenerControllerAdvice {
@@ -31,6 +34,15 @@ public class ShortenerControllerAdvice {
                 .title(NOT_FOUND.getReasonPhrase())
                 .detail(notFoundException.getMessage()), NOT_FOUND);
     }
+
+    @ExceptionHandler(InvalidUrlException.class)
+    public ResponseEntity<Problem> handleInvalidException(InvalidUrlException invalidUrlException){
+        log.error("[Url-Shortener] : Invalid url provided with this request");
+        return new ResponseEntity<>(new Problem()
+                .title(BAD_REQUEST.getReasonPhrase())
+                .detail(invalidUrlException.getMessage()), BAD_REQUEST);
+    }
+
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Problem> handleMethodNotValidException(MethodArgumentNotValidException exception){
