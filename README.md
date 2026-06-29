@@ -74,6 +74,22 @@ curl -X POST localhost:8080/api/v1/url-shortener \
   -H 'Content-Type: application/json' -d '{"url":"https://www.example.com/some/long/path"}'
 ```
 
+## Smoke-testing the API
+
+A ready-to-run **Postman / Newman** collection exercises the whole flow end to end
+(register → login → create → resolve → list). It is idempotent — re-running it when the user
+already exists still passes. See [`postman/README.md`](postman/README.md).
+
+Prerequisites: the API running (`mvn spring-boot:run -Dspring-boot.run.profiles=local`) and,
+for the CLI, **Node.js 18+** (provides `npx`):
+
+```bash
+npx --yes newman run postman/url-shortener.postman_collection.json \
+  -e postman/local.postman_environment.json
+```
+
+Or run the collection directly from the Postman app (no Node needed).
+
 ## Api Specification (EndPoint)
 
 [OAS3 Specification file](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/patken/spring-boot-url-shortener-api/main/src/main/resources/openapi/oas3.yaml)

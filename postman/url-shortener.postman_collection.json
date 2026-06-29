@@ -1,0 +1,204 @@
+{
+  "info": {
+    "name": "URL Shortener API",
+    "description": "End-to-end smoke test: register -> login -> create (auth) -> resolve -> list. Run against a live instance with Newman or the Postman app.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "username", "value": "postman-user" },
+    { "key": "password", "value": "password123" },
+    { "key": "urlToShorten", "value": "https://www.example.com/a/very/long/path" },
+    { "key": "accessToken", "value": "" },
+    { "key": "shortKey", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1. Register (subscription)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Register returns 201 (created) or 409 (already registered)', function () {",
+              "    pm.expect([201, 409]).to.include(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/register",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "auth", "register" ]
+        }
+      }
+    },
+    {
+      "name": "2. Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login succeeds', function () { pm.response.to.have.status(200); });",
+              "var json = pm.response.json();",
+              "pm.test('Access token is present', function () {",
+              "    pm.expect(json.accessToken).to.be.a('string').and.to.have.length.above(0);",
+              "});",
+              "pm.test('Token type is Bearer', function () { pm.expect(json.tokenType).to.eql('Bearer'); });",
+              "pm.collectionVariables.set('accessToken', json.accessToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/login",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "auth", "login" ]
+        }
+      }
+    },
+    {
+      "name": "3. Create without token (expect 401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unauthenticated create is rejected with 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"{{urlToShorten}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/url-shortener",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "url-shortener" ]
+        }
+      }
+    },
+    {
+      "name": "4. Create short url (with token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Create returns 201', function () { pm.response.to.have.status(201); });",
+              "var json = pm.response.json();",
+              "pm.test('A short url is returned', function () {",
+              "    pm.expect(json.shortenUrl).to.be.a('string').and.to.have.length.above(0);",
+              "});",
+              "pm.test('Original url is echoed back', function () {",
+              "    pm.expect(json.originalUrl).to.eql(pm.collectionVariables.get('urlToShorten'));",
+              "});",
+              "pm.collectionVariables.set('shortKey', json.shortenUrl);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"url\": \"{{urlToShorten}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/url-shortener",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "url-shortener" ]
+        }
+      }
+    },
+    {
+      "name": "5. Resolve short url (public)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Resolve returns 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('Resolved original url matches', function () {",
+              "    pm.expect(pm.response.json().originalUrl).to.eql(pm.collectionVariables.get('urlToShorten'));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/url-shortener/{{shortKey}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "url-shortener", "{{shortKey}}" ]
+        }
+      }
+    },
+    {
+      "name": "6. List shortened urls (public)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('List returns 200', function () { pm.response.to.have.status(200); });",
+              "var json = pm.response.json();",
+              "pm.test('Total is at least 1', function () { pm.expect(json.total).to.be.at.least(1); });",
+              "pm.test('Records is a non-empty array', function () {",
+              "    pm.expect(json.records).to.be.an('array').that.is.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/url-shortener?page=0&limit=10",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "url-shortener" ],
+          "query": [
+            { "key": "page", "value": "0" },
+            { "key": "limit", "value": "10" }
+          ]
+        }
+      }
+    }
+  ]
+}
