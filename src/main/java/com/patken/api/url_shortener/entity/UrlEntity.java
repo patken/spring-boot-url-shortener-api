@@ -21,7 +21,7 @@ public class UrlEntity extends CommonEntity implements Serializable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "url_id")
-    private Integer urlId;
+    private Long urlId;
 
     @Column(name = "original_url", nullable = false, length = 2048)
     private String originalUrl;

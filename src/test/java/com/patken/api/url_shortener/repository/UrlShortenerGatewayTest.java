@@ -1,6 +1,5 @@
-package com.patken.api.url_shortener.service;
+package com.patken.api.url_shortener.repository;
 
-import com.patken.api.url_shortener.repository.UrlShortenerRepository;
 import com.patken.api.url_shortener.util.UtilsForTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,112 +22,108 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ActiveProfiles(value = {"retry-test", "local"})
-@SpringBootTest(classes = {RetryRepositoryTemplateTest.SpringRetryConfig.class})
-@SuppressWarnings("unused")
-class RetryRepositoryTemplateTest {
+@SpringBootTest(classes = {UrlShortenerGatewayTest.SpringRetryConfig.class})
+class UrlShortenerGatewayTest {
 
     @Autowired
     private UrlShortenerRepository urlShortenerRepository;
 
     @Autowired
-    private RetryRepositoryTemplate retryRepositoryTemplate;
+    private UrlShortenerGateway urlShortenerGateway;
 
     @BeforeEach
-    void setUp(){
+    void setUp() {
         reset(urlShortenerRepository);
     }
 
     @Test
-    @DisplayName("Add New Url successfully")
-    void testSaveUrlSuccessfully(){
+    @DisplayName("Save a new url successfully")
+    void testSaveSuccessfully() {
         var entityRequest = UtilsForTest.buildUrlEntity(null);
-        var entityResponse = UtilsForTest.buildUrlEntity(10);
+        var entityResponse = UtilsForTest.buildUrlEntity(10L);
         when(urlShortenerRepository.save(entityRequest)).thenReturn(entityResponse);
-        assertNotNull(retryRepositoryTemplate.saveUrl(entityRequest));
+        assertNotNull(urlShortenerGateway.save(entityRequest));
         verify(urlShortenerRepository).save(entityRequest);
     }
 
     @Test
-    @DisplayName("Add New Url Exception with 3 retry")
-    void testSaveUrlException(){
+    @DisplayName("Save retries 3 times on a transient exception")
+    void testSaveException() {
         var entityRequest = UtilsForTest.buildUrlEntity(null);
         doThrow(RuntimeException.class).when(urlShortenerRepository).save(entityRequest);
-        var exception = assertThrows(RuntimeException.class, ()-> retryRepositoryTemplate.saveUrl(entityRequest));
+        var exception = assertThrows(RuntimeException.class, () -> urlShortenerGateway.save(entityRequest));
         assertNotNull(exception);
         verify(urlShortenerRepository, times(3)).save(entityRequest);
     }
 
     @Test
-    @DisplayName("Get shorten url successfully")
-    void testGetShortenUrlSuccessfully(){
-        var entityResponse = UtilsForTest.buildUrlEntity(10);
+    @DisplayName("Find by original url successfully")
+    void testFindByOriginalUrlSuccessfully() {
+        var entityResponse = UtilsForTest.buildUrlEntity(10L);
         when(urlShortenerRepository.findUrlEntityByOriginalUrl(ORIGINAL_URL)).thenReturn(Optional.of(entityResponse));
-        assertNotNull(retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL));
+        assertNotNull(urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL));
         verify(urlShortenerRepository).findUrlEntityByOriginalUrl(ORIGINAL_URL);
     }
 
     @Test
-    @DisplayName("Get shorten url Exception with 3 retry")
-    void testGetShortenUrlException(){
+    @DisplayName("Find by original url retries 3 times on a transient exception")
+    void testFindByOriginalUrlException() {
         doThrow(RuntimeException.class).when(urlShortenerRepository).findUrlEntityByOriginalUrl(ORIGINAL_URL);
-        var exception = assertThrows(RuntimeException.class, ()-> retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL));
+        var exception = assertThrows(RuntimeException.class, () -> urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL));
         assertNotNull(exception);
         verify(urlShortenerRepository, times(3)).findUrlEntityByOriginalUrl(ORIGINAL_URL);
     }
 
     @Test
-    @DisplayName("Get Original url successfully")
-    void testGetOriginalUrlSuccessfully(){
-        var entityResponse = UtilsForTest.buildUrlEntity(10);
+    @DisplayName("Find by shorten url successfully")
+    void testFindByShortenUrlSuccessfully() {
+        var entityResponse = UtilsForTest.buildUrlEntity(10L);
         when(urlShortenerRepository.findUrlEntityByShortenUrl(SHORTEN_URL)).thenReturn(Optional.of(entityResponse));
-        assertNotNull(retryRepositoryTemplate.getOriginalUrl(SHORTEN_URL));
+        assertNotNull(urlShortenerGateway.findByShortenUrl(SHORTEN_URL));
         verify(urlShortenerRepository).findUrlEntityByShortenUrl(SHORTEN_URL);
     }
 
     @Test
-    @DisplayName("Get Original url Exception with 3 retry")
-    void testGetOriginalUrlException(){
+    @DisplayName("Find by shorten url retries 3 times on a transient exception")
+    void testFindByShortenUrlException() {
         doThrow(RuntimeException.class).when(urlShortenerRepository).findUrlEntityByShortenUrl(SHORTEN_URL);
-        var exception = assertThrows(RuntimeException.class, ()-> retryRepositoryTemplate.getOriginalUrl(SHORTEN_URL));
+        var exception = assertThrows(RuntimeException.class, () -> urlShortenerGateway.findByShortenUrl(SHORTEN_URL));
         assertNotNull(exception);
         verify(urlShortenerRepository, times(3)).findUrlEntityByShortenUrl(SHORTEN_URL);
     }
 
     @Test
-    @DisplayName("Get Page url successfully")
-    void testGetPageUrlSuccessfully(){
-        var entityResponse = new PageImpl<>(List.of(UtilsForTest.buildUrlEntity(10)));
+    @DisplayName("Find all paged successfully")
+    void testFindAllSuccessfully() {
+        var entityResponse = new PageImpl<>(List.of(UtilsForTest.buildUrlEntity(10L)));
         var request = PageRequest.of(DEFAULT_PAGE, DEFAULT_LIMIT);
         when(urlShortenerRepository.findAll(request)).thenReturn(entityResponse);
-        assertNotNull(retryRepositoryTemplate.getAllUrl(request));
+        assertNotNull(urlShortenerGateway.findAll(request));
         verify(urlShortenerRepository).findAll(request);
     }
 
     @Test
-    @DisplayName("Get Page url Exception with 3 retry")
-    void testGetPageUrlException(){
+    @DisplayName("Find all paged retries 3 times on a transient exception")
+    void testFindAllException() {
         var request = PageRequest.of(DEFAULT_PAGE, DEFAULT_LIMIT);
         doThrow(RuntimeException.class).when(urlShortenerRepository).findAll(request);
-        var exception = assertThrows(RuntimeException.class, ()-> retryRepositoryTemplate.getAllUrl(request));
+        var exception = assertThrows(RuntimeException.class, () -> urlShortenerGateway.findAll(request));
         assertNotNull(exception);
         verify(urlShortenerRepository, times(3)).findAll(request);
     }
 
-
-
-
     @Configuration
     @EnableRetry
     @Profile("retry-test")
-    public static class SpringRetryConfig {
+    static class SpringRetryConfig {
 
         @Bean
-        public RetryRepositoryTemplate retryRepositoryTemplate(){
-            return new RetryRepositoryTemplate(urlShortenerRepository());
+        public UrlShortenerGateway urlShortenerGateway() {
+            return new UrlShortenerGateway(urlShortenerRepository());
         }
 
         @Bean
-        public UrlShortenerRepository urlShortenerRepository(){
+        public UrlShortenerRepository urlShortenerRepository() {
             return mock(UrlShortenerRepository.class);
         }
     }

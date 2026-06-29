@@ -1,17 +1,17 @@
 package com.patken.api.url_shortener.service.impl;
 
-import com.patken.api.url_shortener.entity.UrlEntity;
 import com.patken.api.url_shortener.exception.InvalidUrlException;
 import com.patken.api.url_shortener.exception.ShortKeyGenerationException;
 import com.patken.api.url_shortener.exception.UrlNotFoundException;
+import com.patken.api.url_shortener.mapper.ShortenUrlPageAssembler;
+import com.patken.api.url_shortener.mapper.UrlMapper;
 import com.patken.api.url_shortener.model.ShortenUrlRequest;
-import com.patken.api.url_shortener.service.RetryRepositoryTemplate;
+import com.patken.api.url_shortener.repository.UrlShortenerGateway;
 import com.patken.api.url_shortener.service.ShortKeyGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.platform.commons.util.StringUtils;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -33,204 +33,149 @@ import static org.mockito.Mockito.*;
 class UrlShortenerServiceImplTest {
 
     @Mock
-    private RetryRepositoryTemplate retryRepositoryTemplate;
-
+    private UrlShortenerGateway urlShortenerGateway;
     @Mock
     private ShortKeyGenerator shortKeyGenerator;
+    @Mock
+    private UrlMapper urlMapper;
+    @Mock
+    private ShortenUrlPageAssembler pageAssembler;
 
     @InjectMocks
     private UrlShortenerServiceImpl urlShortenerService;
 
     @BeforeEach
-    void setUp(){
+    void setUp() {
         ReflectionTestUtils.setField(urlShortenerService, "maxKeyAttempts", 5);
     }
 
     @Test
     @DisplayName("Add new Shorten url returns the existing mapping when the url is already known")
-    void testAddNewShortenUrlExisting(){
-        var request = buildUrlShortenRequest();
-        when(retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL)).thenReturn(Optional.of(buildUrlEntity(10)));
+    void testAddNewShortenUrlExisting() {
+        when(urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL)).thenReturn(Optional.of(buildUrlEntity(10L)));
+        when(urlMapper.toResponse(any())).thenReturn(buildUrlShortenResponse());
 
-        var response = urlShortenerService.addNewShortenUrl(request);
+        var response = urlShortenerService.addNewShortenUrl(buildUrlShortenRequest());
 
-        assertAll("Group all assertions for response",
-                () -> assertNotNull(response),
-                () -> assertEquals(ORIGINAL_URL, response.getOriginalUrl()),
-                () -> assertEquals(SHORTEN_URL, response.getShortenUrl()));
-
-        verify(retryRepositoryTemplate).getShortenUrl(ORIGINAL_URL);
-        verify(retryRepositoryTemplate, never()).saveUrl(any());
+        assertEquals(ORIGINAL_URL, response.getOriginalUrl());
+        verify(urlShortenerGateway).findByOriginalUrl(ORIGINAL_URL);
+        verify(urlShortenerGateway, never()).save(any());
     }
 
     @Test
     @DisplayName("Add new Shorten url rejects an invalid url")
-    void testAddNewShortenUrlInvalid(){
+    void testAddNewShortenUrlInvalid() {
         var request = new ShortenUrlRequest();
         request.setUrl("https:// world/ error");
 
         var exception = assertThrows(InvalidUrlException.class, () -> urlShortenerService.addNewShortenUrl(request));
 
-        assertNotNull(exception);
         assertTrue(exception.getMessage().contains("Invalid Url Provided"));
-
-        verify(retryRepositoryTemplate, never()).getShortenUrl(any());
-        verify(retryRepositoryTemplate, never()).saveUrl(any());
+        verify(urlShortenerGateway, never()).findByOriginalUrl(any());
+        verify(urlShortenerGateway, never()).save(any());
     }
 
     @Test
     @DisplayName("Add new Shorten url persists a new mapping when the url is unknown")
-    void testAddNewShortenUrlNotExisting(){
-        var request = buildUrlShortenRequest();
-        when(retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL)).thenReturn(Optional.empty());
+    void testAddNewShortenUrlNotExisting() {
+        when(urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL)).thenReturn(Optional.empty());
         when(shortKeyGenerator.generate()).thenReturn(SHORTEN_URL);
-        when(retryRepositoryTemplate.saveUrl(any())).thenReturn(buildUrlEntity(15));
+        when(urlShortenerGateway.save(any())).thenReturn(buildUrlEntity(15L));
+        when(urlMapper.toResponse(any())).thenReturn(buildUrlShortenResponse());
 
-        var response = urlShortenerService.addNewShortenUrl(request);
+        var response = urlShortenerService.addNewShortenUrl(buildUrlShortenRequest());
 
-        assertAll("Group all assertions for response",
-                () -> assertNotNull(response),
-                () -> assertEquals(ORIGINAL_URL, response.getOriginalUrl()),
-                () -> assertEquals(SHORTEN_URL, response.getShortenUrl()));
-
-        verify(retryRepositoryTemplate).getShortenUrl(ORIGINAL_URL);
-        verify(retryRepositoryTemplate).saveUrl(any());
+        assertEquals(SHORTEN_URL, response.getShortenUrl());
+        verify(urlShortenerGateway).findByOriginalUrl(ORIGINAL_URL);
+        verify(urlShortenerGateway).save(any());
     }
 
     @Test
     @DisplayName("Add new Shorten url regenerates the key on a short-key collision")
-    void testAddNewShortenUrlRegeneratesOnCollision(){
-        var request = buildUrlShortenRequest();
-        // initial dedup miss, and still missing after the collision -> it is a key collision, not a race
-        when(retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL)).thenReturn(Optional.empty());
+    void testAddNewShortenUrlRegeneratesOnCollision() {
+        when(urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL)).thenReturn(Optional.empty());
         when(shortKeyGenerator.generate()).thenReturn("collide", SHORTEN_URL);
-        when(retryRepositoryTemplate.saveUrl(any()))
+        when(urlShortenerGateway.save(any()))
                 .thenThrow(new DataIntegrityViolationException("duplicate shorten_url"))
-                .thenReturn(buildUrlEntity(20));
+                .thenReturn(buildUrlEntity(20L));
+        when(urlMapper.toResponse(any())).thenReturn(buildUrlShortenResponse());
 
-        var response = urlShortenerService.addNewShortenUrl(request);
+        var response = urlShortenerService.addNewShortenUrl(buildUrlShortenRequest());
 
-        assertNotNull(response);
         assertEquals(SHORTEN_URL, response.getShortenUrl());
         verify(shortKeyGenerator, times(2)).generate();
-        verify(retryRepositoryTemplate, times(2)).saveUrl(any());
+        verify(urlShortenerGateway, times(2)).save(any());
     }
 
     @Test
     @DisplayName("Add new Shorten url returns the concurrently-inserted row on a race")
-    void testAddNewShortenUrlHandlesRaceOnOriginalUrl(){
-        var request = buildUrlShortenRequest();
-        // dedup miss first, then the row appears (another request inserted it concurrently)
-        when(retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL))
+    void testAddNewShortenUrlHandlesRaceOnOriginalUrl() {
+        when(urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL))
                 .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(buildUrlEntity(30)));
+                .thenReturn(Optional.of(buildUrlEntity(30L)));
         when(shortKeyGenerator.generate()).thenReturn(SHORTEN_URL);
-        when(retryRepositoryTemplate.saveUrl(any()))
+        when(urlShortenerGateway.save(any()))
                 .thenThrow(new DataIntegrityViolationException("duplicate original_url"));
+        when(urlMapper.toResponse(any())).thenReturn(buildUrlShortenResponse());
 
-        var response = urlShortenerService.addNewShortenUrl(request);
+        var response = urlShortenerService.addNewShortenUrl(buildUrlShortenRequest());
 
-        assertNotNull(response);
         assertEquals(ORIGINAL_URL, response.getOriginalUrl());
-        verify(retryRepositoryTemplate, times(1)).saveUrl(any());
+        verify(urlShortenerGateway, times(1)).save(any());
     }
 
     @Test
     @DisplayName("Add new Shorten url gives up after exhausting the key attempts")
-    void testAddNewShortenUrlExhaustsAttempts(){
-        var request = buildUrlShortenRequest();
-        when(retryRepositoryTemplate.getShortenUrl(ORIGINAL_URL)).thenReturn(Optional.empty());
+    void testAddNewShortenUrlExhaustsAttempts() {
+        when(urlShortenerGateway.findByOriginalUrl(ORIGINAL_URL)).thenReturn(Optional.empty());
         when(shortKeyGenerator.generate()).thenReturn("dup");
-        when(retryRepositoryTemplate.saveUrl(any()))
+        when(urlShortenerGateway.save(any()))
                 .thenThrow(new DataIntegrityViolationException("duplicate shorten_url"));
 
         var exception = assertThrows(ShortKeyGenerationException.class,
-                () -> urlShortenerService.addNewShortenUrl(request));
+                () -> urlShortenerService.addNewShortenUrl(buildUrlShortenRequest()));
 
         assertTrue(exception.getMessage().contains("unique short key"));
-        verify(retryRepositoryTemplate, times(5)).saveUrl(any());
+        verify(urlShortenerGateway, times(5)).save(any());
     }
 
     @Test
     @DisplayName("Get original url by shorten url successfully")
-    void testGetOriginalWithSuccess(){
-        when(retryRepositoryTemplate.getOriginalUrl(SHORTEN_URL)).thenReturn(Optional.of(buildUrlEntity(5)));
+    void testGetOriginalWithSuccess() {
+        when(urlShortenerGateway.findByShortenUrl(SHORTEN_URL)).thenReturn(Optional.of(buildUrlEntity(5L)));
+        when(urlMapper.toResponse(any())).thenReturn(buildUrlShortenResponse());
 
         var response = urlShortenerService.getOriginalUrl(SHORTEN_URL);
 
-        assertNotNull(response);
-        var originalUrl = response.getOriginalUrl();
-        assertAll("Group all assertions for originalUrl",
-                () -> assertTrue(StringUtils.isNotBlank(originalUrl)),
-                () -> assertEquals(ORIGINAL_URL, originalUrl),
-                () -> assertEquals(SHORTEN_URL, response.getShortenUrl()));
-
-        verify(retryRepositoryTemplate).getOriginalUrl(SHORTEN_URL);
+        assertEquals(ORIGINAL_URL, response.getOriginalUrl());
+        assertEquals(SHORTEN_URL, response.getShortenUrl());
+        verify(urlShortenerGateway).findByShortenUrl(SHORTEN_URL);
     }
 
     @Test
     @DisplayName("Get original url by shorten url throws when not found")
-    void testGetOriginalWithNotFound(){
-        when(retryRepositoryTemplate.getOriginalUrl(SHORTEN_URL)).thenReturn(Optional.empty());
+    void testGetOriginalWithNotFound() {
+        when(urlShortenerGateway.findByShortenUrl(SHORTEN_URL)).thenReturn(Optional.empty());
 
         var exception = assertThrows(UrlNotFoundException.class, () -> urlShortenerService.getOriginalUrl(SHORTEN_URL));
 
-        assertNotNull(exception);
         assertTrue(exception.getMessage().contains("No Url found with this shorten URL"));
-
-        verify(retryRepositoryTemplate).getOriginalUrl(SHORTEN_URL);
+        verify(urlShortenerGateway).findByShortenUrl(SHORTEN_URL);
     }
 
     @Test
-    @DisplayName("Get all url page successfully, sorted and with a next link")
-    void testGetAllUrl(){
-        ReflectionTestUtils.setField(urlShortenerService, "deployUrl", BASE_URL);
+    @DisplayName("Get all delegates to the page assembler with a sorted page request")
+    void testGetAllDelegatesToAssembler() {
         var pageRequest = PageRequest.of(0, 5, Sort.by(Sort.Direction.ASC, "urlId"));
-        var pageResponse = new PageImpl<>(List.of(buildUrlEntity(10), buildUrlEntity(5)), pageRequest, 12);
-        when(retryRepositoryTemplate.getAllUrl(pageRequest)).thenReturn(pageResponse);
+        var page = new PageImpl<>(List.of(buildUrlEntity(10L), buildUrlEntity(5L)), pageRequest, 12);
+        when(urlShortenerGateway.findAll(pageRequest)).thenReturn(page);
+        when(pageAssembler.toResponse(page)).thenReturn(buildPageUrlShortenResponse());
 
         var response = urlShortenerService.getAllShortenUrl(0, 5);
 
         assertNotNull(response);
         assertFalse(response.getRecords().isEmpty());
-        assertEquals(2, response.getRecords().size());
-        assertTrue(StringUtils.isNotBlank(response.getNext()));
-        assertTrue(response.getNext().contains(BASE_URL.concat("?page=1&limit=5")));
-
-        verify(retryRepositoryTemplate).getAllUrl(pageRequest);
-    }
-
-    @Test
-    @DisplayName("Get all url page on the last page has no next link")
-    void testGetAllUrlLastPageHasNoNext(){
-        ReflectionTestUtils.setField(urlShortenerService, "deployUrl", BASE_URL);
-        var pageRequest = PageRequest.of(0, 5, Sort.by(Sort.Direction.ASC, "urlId"));
-        var pageResponse = new PageImpl<>(List.of(buildUrlEntity(10)), pageRequest, 1);
-        when(retryRepositoryTemplate.getAllUrl(pageRequest)).thenReturn(pageResponse);
-
-        var response = urlShortenerService.getAllShortenUrl(0, 5);
-
-        assertNotNull(response);
-        assertEquals(1, response.getRecords().size());
-        assertTrue(StringUtils.isBlank(response.getNext()));
-
-        verify(retryRepositoryTemplate).getAllUrl(pageRequest);
-    }
-
-    @Test
-    @DisplayName("Get all url page with empty result")
-    void testGetAllUrlEmptyResult(){
-        ReflectionTestUtils.setField(urlShortenerService, "deployUrl", BASE_URL);
-        var pageRequest = PageRequest.of(0, 5, Sort.by(Sort.Direction.ASC, "urlId"));
-        var pageResponse = new PageImpl<UrlEntity>(List.of(), pageRequest, 0);
-        when(retryRepositoryTemplate.getAllUrl(pageRequest)).thenReturn(pageResponse);
-
-        var response = urlShortenerService.getAllShortenUrl(0, 5);
-
-        assertNotNull(response);
-        assertTrue(response.getRecords().isEmpty());
-        assertTrue(StringUtils.isBlank(response.getNext()));
-
-        verify(retryRepositoryTemplate).getAllUrl(pageRequest);
+        verify(urlShortenerGateway).findAll(pageRequest);
+        verify(pageAssembler).toResponse(page);
     }
 }

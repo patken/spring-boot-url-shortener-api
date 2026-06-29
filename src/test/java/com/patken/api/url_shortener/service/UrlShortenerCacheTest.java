@@ -40,7 +40,7 @@ class UrlShortenerCacheTest {
     @Test
     @DisplayName("Second resolution of the same key is served from cache")
     void getOriginalUrlIsCached() {
-        var entity = UrlEntity.builder().urlId(1).originalUrl(ORIGINAL).shortenUrl(SHORT_KEY).build();
+        var entity = UrlEntity.builder().urlId(1L).originalUrl(ORIGINAL).shortenUrl(SHORT_KEY).build();
         when(urlShortenerRepository.findUrlEntityByShortenUrl(SHORT_KEY)).thenReturn(Optional.of(entity));
 
         var first = urlShortenerService.getOriginalUrl(SHORT_KEY);

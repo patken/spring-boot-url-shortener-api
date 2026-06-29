@@ -18,7 +18,7 @@ public class UtilsForTest {
     public static final Integer DEFAULT_LIMIT = 5;
     public static final Long DEFAULT_TOTAL = 10L;
 
-    public static UrlEntity buildUrlEntity(Integer id){
+    public static UrlEntity buildUrlEntity(Long id){
         return UrlEntity
                 .builder()
                 .urlId(id)

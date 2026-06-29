@@ -17,7 +17,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.*;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("all")
 class ShortenerControllerAdviceTest {
 
     private static final String NOT_FOUND_MESSAGE = "Unable to find url shortener : xdsasdsf";
