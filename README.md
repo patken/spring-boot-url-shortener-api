@@ -44,7 +44,35 @@ To build and run the project :
   * Api specification oas3.yaml is located : src/main/resources/openapi/oas3.yaml
 * Run with : mvn spring-boot:run --spring.profiles.active=local
   * Here we used local configuration for setting h2 database ; in others environment, it will be another database like Postgres
+  * The database schema is managed by **Flyway** (`src/main/resources/db/migration`); Hibernate runs in `validate` mode and never alters the schema.
+  * First run after upgrading from a pre-Flyway version: delete the stale local database (`rm ~/data/database.mv.db`) so Flyway can create a clean schema.
 * The Rest Api will be available at the url : http://localhost:8080/api/v1/url-shortener
+
+## Authentication
+
+Reads (GET) are public; creating a short URL (POST) requires a `Bearer` JWT (HS256). The API
+ships with a self-contained auth module — no external identity provider needed:
+
+* `POST /api/v1/auth/register` — subscribe with `{ "username", "password" }` (password stored BCrypt-hashed). Returns `201`.
+* `POST /api/v1/auth/login` — returns `{ "accessToken", "tokenType": "Bearer", "expiresIn" }`.
+
+Health/info actuator endpoints stay public. Example end-to-end flow:
+
+```bash
+# 1. Subscribe
+curl -X POST localhost:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' -d '{"username":"alice","password":"password123"}'
+
+# 2. Login and capture the token
+TOKEN=$(curl -s -X POST localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' -d '{"username":"alice","password":"password123"}' \
+  | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
+
+# 3. Create a short url with the token
+curl -X POST localhost:8080/api/v1/url-shortener \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"url":"https://www.example.com/some/long/path"}'
+```
 
 ## Api Specification (EndPoint)
 

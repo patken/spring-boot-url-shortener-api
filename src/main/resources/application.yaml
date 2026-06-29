@@ -12,7 +12,7 @@ spring:
       ddl-auto: ${DDL_AUTO}
   h2:
     console:
-      enabled: true
+      enabled: false
 
 management:
   health:
@@ -41,3 +41,7 @@ app:
   shortener:
     key-length: ${APP_SHORTENER_KEY_LENGTH:7}
     max-key-attempts: ${APP_SHORTENER_MAX_KEY_ATTEMPTS:5}
+  security:
+    jwt:
+      secret: ${APP_SECURITY_JWT_SECRET}
+      ttl: ${APP_SECURITY_JWT_TTL:3600}
