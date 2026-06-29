@@ -4,9 +4,10 @@
 A very simple Spring Boot based REST API that converts long URLs to tiny strings and uses H2 Database to persist data.
 
 # Features
-- **Variety**: Multiple URL shortening algorithms for different use-cases
-- **Fixed Length**: The service produces URLs of a max length (10), ensuring predictability in the URL structure.
-- **Collision Handling**: The service is designed with mechanisms to handle and reduce potential collisions.
+- **Pluggable key generation**: the short key is produced behind a `ShortKeyGenerator` strategy. The default implementation uses a cryptographically strong `SecureRandom` over a Base62 alphabet, so keys are unpredictable (no enumeration) and uniformly distributed.
+- **Configurable length**: the key length is configurable (`app.shortener.key-length`, default 7) within the 10-character column limit, keeping URLs short and predictable in structure.
+- **Collision handling**: short keys are protected by a database unique constraint; on a collision the service regenerates a new key (bounded by `app.shortener.max-key-attempts`).
+- **Idempotent & race-safe creation**: resubmitting a known URL returns its existing short key; concurrent inserts of the same URL are reconciled via a unique constraint on the original URL.
 
 # Non-Functional Requirements
 * Scalability
@@ -22,7 +23,7 @@ A very simple Spring Boot based REST API that converts long URLs to tiny strings
 Here are the technologies used for this Api :
 * Java 17
 * Maven
-* Spring Boot 3.3.0
+* Spring Boot 3.3.3
 * Spring Boot Starter Jpa
 * Spring Boot Web 
 * Spring Boot Actuator

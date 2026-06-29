@@ -28,19 +28,19 @@ public class RetryRepositoryTemplate {
         return urlShortenerRepository.save(urlEntity);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     @Retryable(maxAttemptsExpression = "#{${app.retry-database.max-attempts}}", backoff = @Backoff(delayExpression = "#{${app.retry-database.backoff}}"), noRetryFor = {DataIntegrityViolationException.class, ConstraintViolationException.class})
     public Optional<UrlEntity> getShortenUrl(String url){
         return urlShortenerRepository.findUrlEntityByOriginalUrl(url);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     @Retryable(maxAttemptsExpression = "#{${app.retry-database.max-attempts}}", backoff = @Backoff(delayExpression = "#{${app.retry-database.backoff}}"), noRetryFor = {DataIntegrityViolationException.class, ConstraintViolationException.class})
     public Optional<UrlEntity> getOriginalUrl(String shortenUrl){
         return urlShortenerRepository.findUrlEntityByShortenUrl(shortenUrl);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     @Retryable(maxAttemptsExpression = "#{${app.retry-database.max-attempts}}", backoff = @Backoff(delayExpression = "#{${app.retry-database.backoff}}"), noRetryFor = {DataIntegrityViolationException.class, ConstraintViolationException.class})
     public Page<UrlEntity> getAllUrl(PageRequest pageRequest){
         return urlShortenerRepository.findAll(pageRequest);
