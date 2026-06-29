@@ -43,6 +43,14 @@ public class ShortenerControllerAdvice {
                 .detail(invalidUrlException.getMessage()), BAD_REQUEST);
     }
 
+    @ExceptionHandler(ShortKeyGenerationException.class)
+    public ResponseEntity<Problem> handleShortKeyGenerationException(ShortKeyGenerationException exception){
+        log.error("[Url-Shortener] : Could not generate a unique short key for this request", exception);
+        return new ResponseEntity<>(new Problem()
+                .title(SERVICE_UNAVAILABLE.getReasonPhrase())
+                .detail("Could not generate a unique short url, please retry later"), SERVICE_UNAVAILABLE);
+    }
+
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Problem> handleMethodNotValidException(MethodArgumentNotValidException exception){

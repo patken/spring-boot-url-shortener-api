@@ -38,3 +38,6 @@ app:
     backoff: ${APP_DATABASE_RETRY_BACKOFF}
   deploy:
     url: ${APP_DEPLOY_URL}
+  shortener:
+    key-length: ${APP_SHORTENER_KEY_LENGTH:7}
+    max-key-attempts: ${APP_SHORTENER_MAX_KEY_ATTEMPTS:5}

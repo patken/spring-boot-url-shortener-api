@@ -12,7 +12,10 @@ import java.io.Serializable;
 @SuperBuilder
 @RequiredArgsConstructor
 @Entity
-@Table(name = "url")
+@Table(name = "url", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_url_shorten", columnNames = "shorten_url"),
+        @UniqueConstraint(name = "uk_url_original", columnNames = "original_url")
+})
 public class UrlEntity extends CommonEntity implements Serializable {
 
     @Id
@@ -20,7 +23,7 @@ public class UrlEntity extends CommonEntity implements Serializable {
     @Column(name = "url_id")
     private Integer urlId;
 
-    @Column(name = "original_url", nullable = false)
+    @Column(name = "original_url", nullable = false, length = 2048)
     private String originalUrl;
 
     @Column(name = "shorten_url", nullable = false, length = 10)

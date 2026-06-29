@@ -11,7 +11,7 @@ public class UtilsForTest {
 
     private UtilsForTest(){}
 
-    public static final String ORIGINAL_URL = "https://www.notarius.com/fr/industries/technologues";
+    public static final String ORIGINAL_URL = "https://www.company.com/fr/industries/technologues";
     public static final String SHORTEN_URL = "sa2kn12kjn";
     public static final String BASE_URL = "http://localhost:8080/url-shortener";
     public static final Integer DEFAULT_PAGE = 0;

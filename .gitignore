@@ -40,3 +40,5 @@ bin/
 
 .openapi-generator
 .openapi-generator-ignore
+
+docs/
