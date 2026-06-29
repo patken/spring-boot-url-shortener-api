@@ -41,12 +41,14 @@ class ShortenerControllerAdviceTest {
     @Test
     @DisplayName("Test Arbitrary Exception successfully")
     void testUnexpectedException(){
-        var runtimeException = new RuntimeException("Unexpected Exception");
+        var runtimeException = new RuntimeException("Unexpected Exception with sensitive internal detail");
         var response = shortenerControllerAdvice.handleUnCommonException(runtimeException);
         assertNotNull(response);
         assertEquals(INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().getDetail().contains("Unexpected Exception"));
+        // The internal exception message must NOT leak to the client on a 500.
+        assertFalse(response.getBody().getDetail().contains("sensitive internal detail"));
+        assertEquals("An unexpected error occurred, please try again later", response.getBody().getDetail());
         assertEquals(INTERNAL_SERVER_ERROR.getReasonPhrase(), response.getBody().getTitle());
     }
 

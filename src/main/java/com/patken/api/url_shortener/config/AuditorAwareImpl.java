@@ -1,38 +1,33 @@
 package com.patken.api.url_shortener.config;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.Optional;
 
-@Slf4j
-@RequiredArgsConstructor
+/**
+ * Provides the value used to populate {@code @CreatedBy}/{@code @LastModifiedBy}.
+ * <p>
+ * Resolves the authenticated principal from the security context (the JWT
+ * subject). Falls back to {@code "system"} for unauthenticated/internal writes
+ */
 @EnableJpaAuditing
 @Component
 public class AuditorAwareImpl implements AuditorAware<String> {
 
-    private final DataSource dataSource;
+    private static final String SYSTEM_AUDITOR = "system";
 
-    /**
-     *
-     * @return String which is the database's username that we get to set @CreatedBy from entities
-     */
     @Override
     public Optional<String> getCurrentAuditor() {
-        String auditor = null;
-
-        try(Connection conn = dataSource.getConnection()){
-            auditor = conn.getMetaData().getUserName();
-        } catch (SQLException exception) {
-            log.error("[Url-Shortener] : Cannot fetch current user auditor with message {}", exception.getMessage(), exception);
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return Optional.of(SYSTEM_AUDITOR);
         }
-
-        return Optional.ofNullable(auditor);
+        return Optional.of(authentication.getName());
     }
 }

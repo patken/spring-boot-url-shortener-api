@@ -13,6 +13,8 @@ paths:
         - Url-Shortener-Endpoint
       summary: Save a new url with its shortened version.
       operationId: addNewShortenUrl
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -137,6 +139,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Problem'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     Element:
       type: object

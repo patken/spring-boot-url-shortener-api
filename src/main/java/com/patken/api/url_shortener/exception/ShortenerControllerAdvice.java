@@ -4,6 +4,7 @@ import com.patken.api.url_shortener.model.Element;
 import com.patken.api.url_shortener.model.Problem;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -24,7 +25,7 @@ public class ShortenerControllerAdvice {
         log.error("[Url-Shortener] : Unexpected error occurred with message - {} and cause - {}", exception.getMessage(), exception.getCause(), exception);
         return new ResponseEntity<>(new Problem()
                 .title(INTERNAL_SERVER_ERROR.getReasonPhrase())
-                .detail(exception.getMessage()), INTERNAL_SERVER_ERROR);
+                .detail("An unexpected error occurred, please try again later"), INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(UrlNotFoundException.class)
@@ -41,6 +42,22 @@ public class ShortenerControllerAdvice {
         return new ResponseEntity<>(new Problem()
                 .title(BAD_REQUEST.getReasonPhrase())
                 .detail(invalidUrlException.getMessage()), BAD_REQUEST);
+    }
+
+    @ExceptionHandler(UsernameAlreadyExistsException.class)
+    public ResponseEntity<Problem> handleUsernameAlreadyExists(UsernameAlreadyExistsException exception){
+        log.warn("[Url-Shortener] : Username already exists for this registration request");
+        return new ResponseEntity<>(new Problem()
+                .title(CONFLICT.getReasonPhrase())
+                .detail(exception.getMessage()), CONFLICT);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<Problem> handleBadCredentials(BadCredentialsException exception){
+        log.warn("[Url-Shortener] : Bad credentials provided for this login request");
+        return new ResponseEntity<>(new Problem()
+                .title(UNAUTHORIZED.getReasonPhrase())
+                .detail("Invalid username or password"), UNAUTHORIZED);
     }
 
     @ExceptionHandler(ShortKeyGenerationException.class)
