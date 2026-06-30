@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: Url-Shortener-Endpoint
-  version: v${project.version}
+  version: 1.0.0
   description: Api that can help you to shorten long url
 tags:
   - name: Url-Shortener-Endpoint

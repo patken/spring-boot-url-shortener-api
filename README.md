@@ -92,6 +92,11 @@ Or run the collection directly from the Postman app (no Node needed).
 
 ## Api Specification (EndPoint)
 
+When the application is running, an interactive **Swagger UI** is served at
+<http://localhost:8080/swagger-ui.html>. It renders the hand-written, contract-first
+definition ([`oas3.yaml`](src/main/resources/openapi/oas3.yaml)), also reachable directly at
+`/openapi/oas3.yaml`.
+
 [OAS3 Specification file](https://petstore.swagger.io/?url=https://raw.githubusercontent.com/patken/spring-boot-url-shortener-api/main/src/main/resources/openapi/oas3.yaml)
 
 ### POST Save a new url with its shortened version.

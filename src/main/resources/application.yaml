@@ -45,3 +45,7 @@ app:
     jwt:
       secret: ${APP_SECURITY_JWT_SECRET}
       ttl: ${APP_SECURITY_JWT_TTL:3600}
+springdoc:
+  swagger-ui:
+    url: /openapi/oas3.yaml
+    disable-swagger-default-url: true
