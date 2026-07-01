@@ -1,7 +1,9 @@
 
 # Spring Boot URL Shortener
 
-A very simple Spring Boot based REST API that converts long URLs to tiny strings and uses H2 Database to persist data.
+A production-oriented Spring Boot REST API that converts long URLs into short keys. It is
+contract-first (OpenAPI), secured with JWT, schema-migrated with Flyway, and runs on an H2 file
+database locally or PostgreSQL in production.
 
 # Features
 - **Pluggable key generation**: the short key is produced behind a `ShortKeyGenerator` strategy. The default implementation uses a cryptographically strong `SecureRandom` over a Base62 alphabet, so keys are unpredictable (no enumeration) and uniformly distributed.
@@ -16,24 +18,133 @@ A very simple Spring Boot based REST API that converts long URLs to tiny strings
 * Resilience
 
 # General Design
-## Component / Application Design
 
+## Component / Application design
+
+Layered and contract-first. Each layer has a single responsibility, which keeps the business
+logic free of transport, persistence and presentation concerns.
+
+```mermaid
+flowchart LR
+    Client -->|HTTP + Bearer JWT| Ctl[Controller<br/>implements the OpenAPI interface]
+    Ctl --> Svc[Service<br/>validation · dedup · collision loop]
+    Svc --> Map[UrlMapper · PageAssembler<br/>entity ↔ DTO · pagination link]
+    Svc --> Gw[UrlShortenerGateway<br/>retry · transactions]
+    Gw --> Repo[Spring Data JPA]
+    Repo --> DB[(H2 local /<br/>PostgreSQL prod)]
+    Svc -. cache .-> HZ[(Hazelcast)]
+    Sec[Security<br/>JWT resource server + auth module] --> Ctl
+    FW[(Flyway)] --> DB
+```
+
+- **Controller** — implements the interface generated from `oas3.yaml`; HTTP, bean validation, security.
+- **Service** — the only place with business rules (URL validation, deduplication, bounded key regeneration).
+- **Mapper / PageAssembler** — MapStruct mapping and pagination-response assembly (owns the `next` link and the deploy URL, so the service never sees a web concern).
+- **Gateway** — wraps the repository with the retry policy (`@DatabaseRetryable`) and transaction boundaries.
+- **Cross-cutting** — JWT security, Hazelcast cache, Flyway migrations.
+
+## Request flows
+
+Creating a short URL (deduplication + collision-safe insert):
+
+```mermaid
+sequenceDiagram
+    actor U as Client
+    participant S as Service
+    participant G as Gateway
+    U->>S: POST /api/v1/url-shortener (Bearer JWT)
+    S->>S: validate URL
+    S->>G: findByOriginalUrl(url)
+    alt already known
+        G-->>S: existing entity
+        S-->>U: existing short key (idempotent)
+    else new URL
+        loop up to max-key-attempts
+            S->>S: generate Base62 key (SecureRandom)
+            S->>G: save(entity)
+            alt unique-constraint violation
+                G-->>S: DataIntegrityViolationException
+                S->>G: findByOriginalUrl (was it a concurrent insert?)
+                Note over S: race → return the other row · else regenerate the key
+            else success
+                G-->>S: saved
+            end
+        end
+        S-->>U: 201 + short key
+    end
+```
+
+Resolving a short URL (cache-first on the hot path):
+
+```mermaid
+sequenceDiagram
+    actor U as Client
+    participant S as Service
+    participant HZ as Hazelcast
+    participant G as Gateway
+    U->>S: GET /api/v1/url-shortener/{key}
+    S->>HZ: SHORTEN_URL cache lookup
+    alt cache hit
+        HZ-->>S: response
+    else miss
+        S->>G: findByShortenUrl(key)
+        G-->>S: entity (or empty → 404)
+        S->>HZ: cache the DTO
+    end
+    S-->>U: 200 + original URL
+```
+
+## Key generation & trade-offs
+
+The short key is produced behind a `ShortKeyGenerator` strategy; the default is a **Base62**
+string drawn from a **`SecureRandom`**.
+
+- **Unpredictable** — a cryptographic RNG means keys can't be enumerated to discover other users' URLs (the original timestamp-based generator was guessable).
+- **Length vs collisions** — length is configurable (default **7** → 62⁷ ≈ 3.5 × 10¹² keys). Longer keys shrink collision probability at the cost of slightly longer URLs; the value is externalised so it can grow with volume.
+- **Uniqueness is enforced by the database**, not by the generator: a `UNIQUE` constraint on `shorten_url` is the source of truth. On a violation the service simply regenerates (bounded by `max-key-attempts`) — cheap and correct even under concurrency.
+- **Why not a counter/hash?** A sequential counter is enumerable and leaks volume; a hash of the URL removes the ability to have distinct keys per policy. The strategy interface keeps those options open (e.g. a Snowflake/Base62 counter) without touching callers.
+
+## Concurrency, resilience & caching
+
+- **Idempotency & races** — `UNIQUE(original_url)` turns a concurrent check-then-insert into a caught `DataIntegrityViolationException`; the service re-reads and returns the row the other request created. Reads run in `@Transactional(readOnly = true)`.
+- **Retry** — the gateway retries transient database failures (`@DatabaseRetryable`) but never integrity violations (those are handled explicitly).
+- **Caching** — the hot **resolve** path caches the response DTO in Hazelcast (`SHORTEN_URL`). The dedup lookup goes straight to the indexed `original_url` column, so it doesn't need a cache.
+
+## Security & token model
+
+Stateless **OAuth2 resource server** (HS256 JWT): reads are public, writes require a Bearer token.
+A self-contained auth module issues the tokens (register / login / refresh / logout) — no external
+IdP required.
+
+- **Short access token + revocable refresh token** — limits the exposure window of a stolen token; the refresh token (rotated on use) is exchanged at `/auth/refresh`.
+- **Revocation** — because a pure JWT is irrevocable, a small amount of state lives in Hazelcast: logout bumps a per-user *tokens-valid-after* watermark (rejecting all outstanding access tokens) and drops the active refresh token. This stays on the **cold path** (login/refresh/logout) so access-token validation remains stateless. A `type` claim stops a refresh token from being used as an access token.
+
+## Persistence & migrations
+
+Flyway owns the schema (`db/migration`); Hibernate runs in `validate` mode and never alters it.
+The DDL is written to be portable across **H2** (local) and **PostgreSQL** (prod), which the
+Testcontainers integration test verifies on a real PostgreSQL.
+
+## Scalability
+
+- **Stateless application** → scale horizontally behind a load balancer; no session affinity.
+- **Distributed cache** — Hazelcast is shared across instances, so the resolve path stays fast cluster-wide.
+- **Database** — the resolve-heavy read path suits read replicas; the short key is a natural shard key if the table is partitioned.
+- **Key space** — 62ⁿ grows exponentially with length; increase `key-length` as volume rises to keep the collision rate negligible.
 
 ## Technologies used
 Here are the technologies used for this Api :
-* Java 17
-* Maven
-* Spring Boot 3.3.3
-* Spring Boot Starter Jpa
-* Spring Boot Web 
-* Spring Boot Actuator
-* Spring Boot retry (Enable retry on database in failure)
-* Apache commons-validator (For url validation)
-* OpenApi (For Api Specification)
-* H2 Database (file based database)
-* Hazelcast (to enable Cache)
-* Mockito
-* JUnit5
+* Java 17 · Maven
+* Spring Boot 3.3.3 — Web, Data JPA, Actuator, Validation, Cache, Retry
+* Spring Security — OAuth2 Resource Server (JWT, HS256)
+* Flyway (schema migrations) · H2 (local) / PostgreSQL (prod)
+* Hazelcast (distributed cache + token-revocation state)
+* OpenAPI / springdoc (contract-first spec + Swagger UI)
+* MapStruct (entity ↔ DTO mapping)
+* Apache commons-validator (URL validation)
+* Docker & docker-compose · GitHub Actions (CI)
+* JUnit 5 · Mockito · Testcontainers · JaCoCo (coverage)
+* Postman / Newman (end-to-end API smoke test)
 
 ## How to run application
 To build and run the project :
@@ -48,13 +159,41 @@ To build and run the project :
   * First run after upgrading from a pre-Flyway version: delete the stale local database (`rm ~/data/database.mv.db`) so Flyway can create a clean schema.
 * The Rest Api will be available at the url : http://localhost:8080/api/v1/url-shortener
 
+## Run with Docker (app + PostgreSQL)
+
+A multi-stage [`Dockerfile`](Dockerfile) builds a slim, non-root image and
+[`docker-compose.yml`](docker-compose.yml) runs the API against a real PostgreSQL — the same
+database used in production, with Flyway applying the schema on startup:
+
+```bash
+docker compose up --build
+# API on http://localhost:8080, PostgreSQL on 5432
+docker compose down -v   # stop and wipe the database volume
+```
+
+## Continuous integration
+
+[GitHub Actions](.github/workflows/ci.yml) runs `mvn verify` on every push/PR (unit tests, the
+Testcontainers PostgreSQL integration test — which runs on the CI Docker daemon — and the JaCoCo
+coverage gate) and builds the Docker image.
+
 ## Authentication
 
 Reads (GET) are public; creating a short URL (POST) requires a `Bearer` JWT (HS256). The API
 ships with a self-contained auth module — no external identity provider needed:
 
 * `POST /api/v1/auth/register` — subscribe with `{ "username", "password" }` (password stored BCrypt-hashed). Returns `201`.
-* `POST /api/v1/auth/login` — returns `{ "accessToken", "tokenType": "Bearer", "expiresIn" }`.
+* `POST /api/v1/auth/login` — returns `{ "accessToken", "refreshToken", "tokenType": "Bearer", "expiresIn" }`.
+* `POST /api/v1/auth/refresh` — exchange a valid `{ "refreshToken" }` for a new access token (the refresh token is rotated).
+* `POST /api/v1/auth/logout` — (authenticated) revokes the user's tokens.
+
+**Token model & revocation.** Access tokens are short-lived (15 min) so a stolen token's exposure
+window is small; a longer-lived, revocable **refresh token** is exchanged at `/auth/refresh`.
+Because a pure JWT is otherwise irrevocable, revocation state is kept server-side in Hazelcast:
+`logout` bumps a per-user *tokens-valid-after* watermark (rejecting every outstanding access token)
+and invalidates the refresh token. A custom `OAuth2TokenValidator` enforces the watermark, and a
+`type` claim prevents a refresh token from being used as an access token. This keeps the hot path
+stateless (revocation is only touched at login/refresh/logout).
 
 Health/info actuator endpoints stay public. Example end-to-end flow:
 

@@ -10,6 +10,7 @@
     { "key": "password", "value": "password123" },
     { "key": "urlToShorten", "value": "https://www.example.com/a/very/long/path" },
     { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
     { "key": "shortKey", "value": "" }
   ],
   "item": [
@@ -56,7 +57,11 @@
               "    pm.expect(json.accessToken).to.be.a('string').and.to.have.length.above(0);",
               "});",
               "pm.test('Token type is Bearer', function () { pm.expect(json.tokenType).to.eql('Bearer'); });",
-              "pm.collectionVariables.set('accessToken', json.accessToken);"
+              "pm.test('Refresh token is present', function () {",
+              "    pm.expect(json.refreshToken).to.be.a('string').and.to.have.length.above(0);",
+              "});",
+              "pm.collectionVariables.set('accessToken', json.accessToken);",
+              "pm.collectionVariables.set('refreshToken', json.refreshToken);"
             ]
           }
         }
@@ -197,6 +202,91 @@
             { "key": "page", "value": "0" },
             { "key": "limit", "value": "10" }
           ]
+        }
+      }
+    },
+    {
+      "name": "7. Refresh tokens (rotation)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Refresh returns 200', function () { pm.response.to.have.status(200); });",
+              "var json = pm.response.json();",
+              "pm.test('A new access token is issued', function () {",
+              "    pm.expect(json.accessToken).to.be.a('string').and.to.have.length.above(0);",
+              "});",
+              "pm.collectionVariables.set('accessToken', json.accessToken);",
+              "pm.collectionVariables.set('refreshToken', json.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/refresh",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "auth", "refresh" ]
+        }
+      }
+    },
+    {
+      "name": "8. Logout (revoke)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout returns 204', function () { pm.response.to.have.status(204); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Authorization", "value": "Bearer {{accessToken}}" } ],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/logout",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "auth", "logout" ]
+        }
+      }
+    },
+    {
+      "name": "9. Refresh after logout (expect 401)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('The revoked refresh token is rejected with 401', function () {",
+              "    pm.response.to.have.status(401);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/auth/refresh",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "api", "v1", "auth", "refresh" ]
         }
       }
     }

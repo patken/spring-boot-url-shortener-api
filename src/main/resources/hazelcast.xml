@@ -12,4 +12,14 @@
         <time-to-live-seconds>15768000</time-to-live-seconds>
     </map>
 
+    <!-- username -> currently-active refresh token id (jti). Presence = valid, removal = revoked. -->
+    <map name="REFRESH_TOKENS">
+        <time-to-live-seconds>604800</time-to-live-seconds>
+    </map>
+
+    <!-- username -> epoch second before which any access token is rejected (logout / revoke-all). -->
+    <map name="TOKENS_VALID_AFTER">
+        <time-to-live-seconds>604800</time-to-live-seconds>
+    </map>
+
 </hazelcast>

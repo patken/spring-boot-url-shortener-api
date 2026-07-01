@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+.idea/
+docs/
+postman/
+*.iml
+*.log
+.DS_Store
+HELP.md

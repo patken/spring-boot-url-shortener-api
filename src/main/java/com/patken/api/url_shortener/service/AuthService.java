@@ -5,15 +5,17 @@ import com.patken.api.url_shortener.dto.TokenResponse;
 import com.patken.api.url_shortener.entity.UserEntity;
 import com.patken.api.url_shortener.exception.UsernameAlreadyExistsException;
 import com.patken.api.url_shortener.repository.UserRepository;
+import com.patken.api.url_shortener.security.TokenStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * In-app authentication: registration (subscription) and login.
+ * In-app authentication: registration, login, token refresh and logout (revocation).
  */
 @Slf4j
 @Service
@@ -21,10 +23,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private static final String DEFAULT_ROLE = "USER";
+    private static final String BEARER = "Bearer";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final TokenService tokenService;
+    private final TokenStore tokenStore;
 
     @Transactional
     public void register(AuthRequest request) {
@@ -50,6 +54,45 @@ public class AuthService {
                     return new BadCredentialsException("Invalid username or password");
                 });
         log.info("[Url-Shortener] : Successful login for user {}", user.getUsername());
-        return tokenService.generateToken(user.getUsername(), user.getRole());
+        return issueTokens(user.getUsername(), user.getRole());
+    }
+
+    /**
+     * Exchanges a valid, still-active refresh token for a new access token and rotates the refresh
+     * token (the previous one is invalidated).
+     */
+    @Transactional(readOnly = true)
+    public TokenResponse refresh(String refreshToken) {
+        String username;
+        String refreshId;
+        try {
+            var jwt = tokenService.decodeRefreshToken(refreshToken);
+            username = jwt.getSubject();
+            refreshId = jwt.getId();
+        } catch (JwtException | IllegalArgumentException exception) {
+            log.warn("[Url-Shortener] : Invalid refresh token presented");
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+        if (!tokenStore.isActiveRefresh(username, refreshId)) {
+            log.warn("[Url-Shortener] : Refresh token no longer active for user {}", username);
+            throw new BadCredentialsException("Refresh token is no longer valid");
+        }
+        var role = userRepository.findByUsername(username)
+                .map(UserEntity::getRole)
+                .orElseThrow(() -> new BadCredentialsException("Unknown user"));
+        log.info("[Url-Shortener] : Refreshing tokens for user {}", username);
+        return issueTokens(username, role);
+    }
+
+    public void logout(String username) {
+        tokenStore.revokeAll(username);
+        log.info("[Url-Shortener] : Logged out and revoked tokens for user {}", username);
+    }
+
+    private TokenResponse issueTokens(String username, String role) {
+        var accessToken = tokenService.generateAccessToken(username, role);
+        var refresh = tokenService.generateRefreshToken(username);
+        tokenStore.storeActiveRefresh(username, refresh.jti());
+        return new TokenResponse(accessToken, refresh.token(), BEARER, tokenService.accessTtlSeconds());
     }
 }
