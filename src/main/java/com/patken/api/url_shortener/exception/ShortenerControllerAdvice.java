@@ -8,6 +8,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 
@@ -26,6 +27,14 @@ public class ShortenerControllerAdvice {
         return new ResponseEntity<>(new Problem()
                 .title(INTERNAL_SERVER_ERROR.getReasonPhrase())
                 .detail("An unexpected error occurred, please try again later"), INTERNAL_SERVER_ERROR);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Problem> handleNoResourceFound(NoResourceFoundException exception){
+        log.warn("[Url-Shortener] : No resource found for path {}", exception.getResourcePath());
+        return new ResponseEntity<>(new Problem()
+                .title(NOT_FOUND.getReasonPhrase())
+                .detail("No resource found for the requested path"), NOT_FOUND);
     }
 
     @ExceptionHandler(UrlNotFoundException.class)

@@ -4,10 +4,12 @@ import com.patken.api.url_shortener.entity.UrlEntity;
 import com.patken.api.url_shortener.exception.InvalidUrlException;
 import com.patken.api.url_shortener.exception.ShortKeyGenerationException;
 import com.patken.api.url_shortener.exception.UrlNotFoundException;
+import com.patken.api.url_shortener.mapper.ShortenUrlPageAssembler;
+import com.patken.api.url_shortener.mapper.UrlMapper;
 import com.patken.api.url_shortener.model.ShortenUrlPageResponse;
 import com.patken.api.url_shortener.model.ShortenUrlRequest;
 import com.patken.api.url_shortener.model.ShortenUrlResponse;
-import com.patken.api.url_shortener.service.RetryRepositoryTemplate;
+import com.patken.api.url_shortener.repository.UrlShortenerGateway;
 import com.patken.api.url_shortener.service.ShortKeyGenerator;
 import com.patken.api.url_shortener.service.UrlShortenerService;
 import lombok.RequiredArgsConstructor;
@@ -16,31 +18,23 @@ import org.apache.commons.validator.routines.UrlValidator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-
-import java.util.function.Function;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class UrlShortenerServiceImpl implements UrlShortenerService {
 
-    private final RetryRepositoryTemplate retryRepositoryTemplate;
+    private final UrlShortenerGateway urlShortenerGateway;
     private final ShortKeyGenerator shortKeyGenerator;
+    private final UrlMapper urlMapper;
+    private final ShortenUrlPageAssembler pageAssembler;
     private final UrlValidator urlValidator = new UrlValidator();
-
-    @Value("${app.deploy.url}")
-    private String deployUrl;
 
     @Value("${app.shortener.max-key-attempts:5}")
     private int maxKeyAttempts;
-
-    private final Function<UrlEntity, ShortenUrlResponse> mapEntityToResponse = (urlEntity -> new ShortenUrlResponse()
-            .originalUrl(urlEntity.getOriginalUrl())
-            .shortenUrl(urlEntity.getShortenUrl()));
 
     @Override
     public ShortenUrlResponse addNewShortenUrl(ShortenUrlRequest shortenUrlRequest) {
@@ -50,14 +44,14 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
             throw new InvalidUrlException("Invalid Url Provided ; please verify and try again");
         }
 
-        var existingUrl = retryRepositoryTemplate.getShortenUrl(originalUrl);
+        var existingUrl = urlShortenerGateway.findByOriginalUrl(originalUrl);
         if (existingUrl.isPresent()) {
             log.info("[Url-Shortener] : Shorten url already exists into the database with id {}", existingUrl.get().getUrlId());
-            return mapEntityToResponse.apply(existingUrl.get());
+            return urlMapper.toResponse(existingUrl.get());
         }
 
         log.info("[Url-Shortener] : Shorten url does not exist into the database, creating a new one");
-        return mapEntityToResponse.apply(createWithUniqueKey(originalUrl));
+        return urlMapper.toResponse(createWithUniqueKey(originalUrl));
     }
 
     /**
@@ -78,11 +72,11 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
                     .shortenUrl(shortKeyGenerator.generate())
                     .build();
             try {
-                var saved = retryRepositoryTemplate.saveUrl(candidate);
+                var saved = urlShortenerGateway.save(candidate);
                 log.info("[Url-Shortener] : Saved new shortened url with id {} and key {}", saved.getUrlId(), saved.getShortenUrl());
                 return saved;
             } catch (DataIntegrityViolationException violation) {
-                var raced = retryRepositoryTemplate.getShortenUrl(originalUrl);
+                var raced = urlShortenerGateway.findByOriginalUrl(originalUrl);
                 if (raced.isPresent()) {
                     log.info("[Url-Shortener] : Concurrent insert detected for the same url, returning existing id {}", raced.get().getUrlId());
                     return raced.get();
@@ -97,10 +91,10 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
     @Override
     @Cacheable(value = "SHORTEN_URL", key = "#shortenUrl")
     public ShortenUrlResponse getOriginalUrl(String shortenUrl) {
-        var urlEntity = retryRepositoryTemplate.getOriginalUrl(shortenUrl);
+        var urlEntity = urlShortenerGateway.findByShortenUrl(shortenUrl);
         if (urlEntity.isPresent()) {
             log.info("[Url-Shortener] : original url found with id {}", urlEntity.get().getUrlId());
-            return mapEntityToResponse.apply(urlEntity.get());
+            return urlMapper.toResponse(urlEntity.get());
         }
         log.warn("[Url-Shortener] : Get original url from shorten url {} not found", shortenUrl);
         throw new UrlNotFoundException(String.format("No Url found with this shorten URL : %s", shortenUrl));
@@ -109,20 +103,8 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
     @Override
     public ShortenUrlPageResponse getAllShortenUrl(Integer page, Integer limit) {
         var pageRequest = PageRequest.of(page, limit, Sort.by(Sort.Direction.ASC, "urlId"));
-        var allShortenUrl = retryRepositoryTemplate.getAllUrl(pageRequest);
+        var allShortenUrl = urlShortenerGateway.findAll(pageRequest);
         log.info("[Url-Shortener] : Get all shorten url with total {}", allShortenUrl.getTotalElements());
-        return convertToResponse(allShortenUrl);
-    }
-
-    private ShortenUrlPageResponse convertToResponse(Page<UrlEntity> urlEntityPage) {
-        var shortenUrlPageResponse = new ShortenUrlPageResponse();
-        urlEntityPage.getContent()
-                .forEach(urlEntity -> shortenUrlPageResponse.addRecordsItem(mapEntityToResponse.apply(urlEntity)));
-        var pageable = urlEntityPage.getPageable();
-        return shortenUrlPageResponse
-                .total(urlEntityPage.getTotalElements())
-                .next(urlEntityPage.hasNext()
-                        ? String.format(deployUrl.concat("?page=%d&limit=%d"), pageable.getPageNumber() + 1, pageable.getPageSize())
-                        : null);
+        return pageAssembler.toResponse(allShortenUrl);
     }
 }

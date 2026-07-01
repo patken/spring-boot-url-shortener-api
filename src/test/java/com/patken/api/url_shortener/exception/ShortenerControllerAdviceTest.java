@@ -5,9 +5,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpMethod;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -17,7 +19,6 @@ import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpStatus.*;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("all")
 class ShortenerControllerAdviceTest {
 
     private static final String NOT_FOUND_MESSAGE = "Unable to find url shortener : xdsasdsf";
@@ -35,6 +36,17 @@ class ShortenerControllerAdviceTest {
         assertEquals(NOT_FOUND, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().getDetail().contains("Unable to find url shortener"));
+        assertEquals(NOT_FOUND.getReasonPhrase(), response.getBody().getTitle());
+    }
+
+    @Test
+    @DisplayName("Test No Resource Found maps to 404")
+    void testNoResourceFound(){
+        var exception = new NoResourceFoundException(HttpMethod.GET, "/missing");
+        var response = shortenerControllerAdvice.handleNoResourceFound(exception);
+        assertNotNull(response);
+        assertEquals(NOT_FOUND, response.getStatusCode());
+        assertNotNull(response.getBody());
         assertEquals(NOT_FOUND.getReasonPhrase(), response.getBody().getTitle());
     }
 

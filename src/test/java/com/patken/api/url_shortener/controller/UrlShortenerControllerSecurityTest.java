@@ -1,6 +1,7 @@
 package com.patken.api.url_shortener.controller;
 
 import com.patken.api.url_shortener.config.SecurityConfig;
+import com.patken.api.url_shortener.security.TokenRevocationValidator;
 import com.patken.api.url_shortener.service.UrlShortenerService;
 import com.patken.api.url_shortener.util.UtilsForTest;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +31,11 @@ class UrlShortenerControllerSecurityTest {
 
     @MockBean
     private UrlShortenerService urlShortenerService;
+
+    // Required by SecurityConfig#jwtDecoder; the jwt() post-processor bypasses the decoder,
+    // so the mock is never actually invoked here.
+    @MockBean
+    private TokenRevocationValidator tokenRevocationValidator;
 
     @Test
     @DisplayName("POST (write) is rejected with 401 when unauthenticated")
